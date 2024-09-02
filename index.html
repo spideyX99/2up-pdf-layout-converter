@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2up PDF Convert</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        .progress-container {
+            margin-top: 20px;
+        }
+        .progress-bar {
+            transition: width 0.4s ease;
+        }
+        #download-link {
+            margin-top: 20px;
+            display: none;
+        }
+        .custom-file-input:lang(en)~.custom-file-label::after {
+            content: "Browse";
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-2">2up PDF Convert</h1>
+        <pre>made with ❤️ by <b style="color:blue">Ronal</b></pre>
+        <div class="form-group mt-4">
+            <label for="pdf-file">Select PDF file:</label>
+            <div class="custom-file">
+                <input type="file" id="pdf-file" class="custom-file-input" accept="application/pdf">
+                <label class="custom-file-label" for="pdf-file">Choose file</label>
+            </div>
+        </div>
+        <button onclick="convertPdf()" class="btn btn-primary">Convert PDF</button>
+        <div class="progress-container">
+            <div class="progress mt-3">
+                <div id="progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+        </div>
+        <a id="download-link" class="btn btn-success">Download PDF</a>
+    </div>
+
+    <script>
+        async function convertPdf() {
+            const fileInput = document.getElementById('pdf-file');
+            if (!fileInput.files.length) {
+                alert('Please select a PDF file.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+            const fileName = file.name.replace('.pdf', '-double-layout.pdf'); // Append a suffix for the new file
+
+            // Load the PDF
+            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            const newPdfDoc = await PDFLib.PDFDocument.create();
+            const pages = pdfDoc.getPages();
+            const numPages = pages.length;
+
+            let processedPages = 0;
+
+            for (let i = 0; i < numPages; i += 2) {
+                const page1 = pages[i];
+                const page1Dims = page1.getSize();
+                
+                let page2Dims = { width: 0, height: 0 };
+                let page2 = null;
+                
+                if (i + 1 < numPages) {
+                    page2 = pages[i + 1];
+                    page2Dims = page2.getSize();
+                }
+                
+                const newPage = newPdfDoc.addPage([page1Dims.width + page2Dims.width, Math.max(page1Dims.height, page2Dims.height)]);
+                
+                const [page1Image, page2Image] = await Promise.all([
+                    newPdfDoc.embedPage(page1),
+                    page2 ? newPdfDoc.embedPage(page2) : Promise.resolve(null),
+                ]);
+                
+                newPage.drawPage(page1Image, { x: 0, y: 0 });
+                if (page2) {
+                    newPage.drawPage(page2Image, { x: page1Dims.width, y: 0 });
+                }
+
+                processedPages += 2;
+                updateProgress(Math.min((processedPages / numPages) * 100, 100)); // Update progress
+                await new Promise(resolve => setTimeout(resolve, 10)); // Yield control
+            }
+
+            updateProgress(100);
+
+            const newPdfBytes = await newPdfDoc.save();
+            const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
+            const downloadLink = document.getElementById('download-link');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = fileName;
+            downloadLink.style.display = 'block';
+            downloadLink.textContent = 'Download PDF';
+        }
+
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = Math.round(percent) + '%';
+            progressBar.setAttribute('aria-valuenow', percent);
+        }
+
+        // Update the custom file input label
+        document.querySelector('.custom-file-input').addEventListener('change', (event) => {
+            const fileName = event.target.files[0] ? event.target.files[0].name : 'Choose file';
+            document.querySelector('.custom-file-label').textContent = fileName;
+        });
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
